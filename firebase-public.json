@@ -1,0 +1,10 @@
+{
+  "firebaseConfig": {
+    "projectId": "iraq-china-stores",
+    "appId": "1:469579242636:web:4fd24d768795103ae12fa9",
+    "apiKey": "AIzaSyCa4cqrMCLIpa-Z2S6Pl57JCd6X6596jQ4",
+    "authDomain": "iraq-china-stores.firebaseapp.com",
+    "messagingSenderId": "469579242636"
+  },
+  "vapidKey": "BCLLWpUIDF_Rh7rrpNGt_KoO_WnYBSuJ12TnQ7OxHQrK1gH0l0dIBTippwBxnvm_xEIn1IqiH3DPk-xOJZ8iGHA"
+}
