@@ -1,9 +1,9 @@
-import {business} from './business-api.js?v=7b704c30daba97f8';
+import {business} from './business-api.js?v=0d4f5e94fcd394fb';
 
-import {compressImage} from './image-upload.mjs?v=7b704c30daba97f8';
+import {compressImage} from './image-upload.mjs?v=0d4f5e94fcd394fb';
 
 const root=document.querySelector('#app');
-root.innerHTML='<main class="review-shell" dir="rtl"><header><details class="admin-menu"><summary aria-label="قائمة أقسام الإدارة"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></summary><nav aria-label="أقسام الإدارة"><button data-pane="requests" aria-pressed="true">المهن</button><button data-pane="categories" aria-pressed="false">تصنيفات المهن</button><button data-pane="app-settings" aria-pressed="false">إعدادات التطبيق</button><button data-pane="violations" aria-pressed="false">المخالفات</button><button data-pane="support-tickets" aria-pressed="false">الدعم</button><button data-pane="banners" aria-pressed="false">البنرات</button></nav></details><img class="review-mark" alt="" width="48" height="48"><div><strong>محتاج لك</strong><p>لوحة الإدارة</p></div></header><section id="requests"><h1>طلبات أصحاب المهن</h1><p role="status" aria-live="polite"></p><div class="review-list"></div><button class="more" hidden>عرض المزيد</button></section></main>';
+root.innerHTML='<main class="review-shell" dir="rtl"><header><details class="admin-menu"><summary aria-label="قائمة أقسام الإدارة"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></summary><nav aria-label="أقسام الإدارة"><button data-pane="customers" aria-pressed="false">الزبائن</button><button data-pane="requests" aria-pressed="true">المهن</button><button data-pane="categories" aria-pressed="false">تصنيفات المهن</button><button data-pane="app-settings" aria-pressed="false">إعدادات التطبيق</button><button data-pane="violations" aria-pressed="false">المخالفات</button><button data-pane="support-tickets" aria-pressed="false">الدعم</button><button data-pane="banners" aria-pressed="false">البنرات</button></nav></details><img class="review-mark" alt="" width="48" height="48"><div><strong>محتاج لك</strong><p>لوحة الإدارة</p></div></header><section id="requests"><h1>طلبات أصحاب المهن</h1><p role="status" aria-live="polite"></p><div class="review-list"></div><button class="more" hidden>عرض المزيد</button></section></main>';
 root.querySelector('.review-mark').src=window.IMC_PAGES?'icon-192.png?v=handshake1':'/help-assets/brand-mark.webp?v=handshake1';
 const list=root.querySelector('.review-list');
 const status=root.querySelector('[role=status]');
@@ -218,6 +218,7 @@ menu.addEventListener('focusout',event=>{
 });
 document.addEventListener('keydown',event=>{
   if(menu.open && event.key==='Escape'){
+    if(tab.dataset.pane!=="customers"){searchGeneration++;customerResult.replaceChildren();customerStatus.textContent="";customerForm.reset();}
     menu.open=false;
     trigger.focus();
   }
@@ -408,6 +409,38 @@ async function categoryAction(args){
 }
 categoryForm.onsubmit=event=>{event.preventDefault();categoryAction({action:'create',name:categoryForm.elements.categoryName.value});};
 
+const customers=document.createElement('section');
+customers.id='customers';customers.hidden=true;
+customers.innerHTML='<h1>الزبائن</h1><form><label>رقم الزبون<input name="phone" type="tel" required dir="ltr"></label><button>بحث</button></form><p role="status"></p><div class="review-list"></div>';
+root.querySelector('main').append(customers);
+const customerForm=customers.querySelector('form'),customerStatus=customers.querySelector('[role=status]'),customerResult=customers.querySelector('.review-list');
+let searchGeneration=0;
+customerForm.onsubmit=async event=>{
+  event.preventDefault();
+  const generation=++searchGeneration;
+  customerResult.replaceChildren();customerStatus.textContent='جارٍ البحث…';
+  try{
+    const customer=await business('customerLookup',{phone:customerForm.elements.phone.value});
+    if(generation!==searchGeneration)return;
+    if(!customer){customerStatus.textContent='ما لقينا حساب بهذا الرقم';return;}
+    customerStatus.textContent=[customer.name,customer.province,customer.phone].join(' · ');
+    const hint=document.createElement('p'),button=document.createElement('button'),delivery=document.createElement('div');
+    hint.textContent='تأكد أن الزبون راسلك من نفس رقم الحساب قبل إرسال الرابط.';
+    button.textContent='إعادة تعيين كلمة المرور';
+    customerResult.append(hint,button,delivery);
+    button.onclick=async()=>{
+      button.disabled=true;delivery.replaceChildren();
+      try{
+        const {token,expiresAt}=await business('issueRecovery',{id:customer.id});
+        if(generation!==searchGeneration)return;
+        const link=document.createElement('a');
+        link.href='https://wa.me/964'+customer.phone.slice(1)+'?text='+encodeURIComponent('رابط تغيير كلمة مرور محتاج لك، صالح لمرة واحدة خلال ٢٤ ساعة. '+ 'https://pleasant-rook-282.eu-west-1.convex.site/recover#'+token);
+        link.target='_blank';link.rel='noopener noreferrer';link.textContent='إرسال رابط الاستعادة عبر واتساب';
+        delivery.append(link,document.createTextNode(' · ينتهي '+new Date(expiresAt).toLocaleString('ar-IQ')));
+      }catch(error){delivery.textContent=error.message;}finally{button.disabled=false;}
+    };
+  }catch(error){if(generation===searchGeneration)customerStatus.textContent=error.message;}
+};
 for(const tab of root.querySelectorAll('[data-pane]')){
   tab.onclick=()=>{
     for(const item of root.querySelectorAll('[data-pane]')){
