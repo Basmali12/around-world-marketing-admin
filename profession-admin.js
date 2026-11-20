@@ -1,9 +1,10 @@
-import {business} from './business-api.js?v=328f8413b68fb088';
+import {business} from './business-api.js?v=7b704c30daba97f8';
 
-import {compressImage} from './image-upload.mjs?v=328f8413b68fb088';
+import {compressImage} from './image-upload.mjs?v=7b704c30daba97f8';
 
 const root=document.querySelector('#app');
-root.innerHTML='<main class="review-shell" dir="rtl"><header><details class="admin-menu"><summary aria-label="قائمة أقسام الإدارة"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></summary><nav aria-label="أقسام الإدارة"><button data-pane="requests" aria-pressed="true">المهن</button><button data-pane="app-settings" aria-pressed="false">إعدادات التطبيق</button><button data-pane="support-tickets" aria-pressed="false">الدعم</button><button data-pane="banners" aria-pressed="false">البنرات</button></nav></details><span class="review-mark" aria-hidden="true">م</span><div><strong>محتاج لك</strong><p>لوحة الإدارة</p></div></header><section id="requests"><h1>طلبات أصحاب المهن</h1><p role="status" aria-live="polite"></p><div class="review-list"></div><button class="more" hidden>عرض المزيد</button></section></main>';
+root.innerHTML='<main class="review-shell" dir="rtl"><header><details class="admin-menu"><summary aria-label="قائمة أقسام الإدارة"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></summary><nav aria-label="أقسام الإدارة"><button data-pane="requests" aria-pressed="true">المهن</button><button data-pane="categories" aria-pressed="false">تصنيفات المهن</button><button data-pane="app-settings" aria-pressed="false">إعدادات التطبيق</button><button data-pane="violations" aria-pressed="false">المخالفات</button><button data-pane="support-tickets" aria-pressed="false">الدعم</button><button data-pane="banners" aria-pressed="false">البنرات</button></nav></details><img class="review-mark" alt="" width="48" height="48"><div><strong>محتاج لك</strong><p>لوحة الإدارة</p></div></header><section id="requests"><h1>طلبات أصحاب المهن</h1><p role="status" aria-live="polite"></p><div class="review-list"></div><button class="more" hidden>عرض المزيد</button></section></main>';
+root.querySelector('.review-mark').src=window.IMC_PAGES?'icon-192.png?v=handshake1':'/help-assets/brand-mark.webp?v=handshake1';
 const list=root.querySelector('.review-list');
 const status=root.querySelector('[role=status]');
 const more=root.querySelector('.more');
@@ -330,6 +331,83 @@ async function loadTickets(reset){
 }
 ticketMore.onclick=()=>loadTickets(false);
 
+const violations=document.createElement('section');
+violations.id='violations';
+violations.hidden=true;
+violations.innerHTML='<h1>المخالفات</h1><h2>الحسابات الموقوفة مؤقتاً</h2><p role="status"></p><div class="review-list"></div><button class="more" hidden>عرض المزيد</button>';
+root.querySelector('main').append(violations);
+const violationList=violations.querySelector('.review-list');
+const violationStatus=violations.querySelector('[role=status]');
+const moreSuspensions=violations.querySelector('.more');
+let suspensionCursor=null,suspensionVersion=0;
+async function loadSuspensions(reset){
+  const version=++suspensionVersion;
+  if(reset){suspensionCursor=null;violationList.replaceChildren();moreSuspensions.hidden=true;}
+  violationStatus.textContent='جارٍ تحميل الحسابات…';
+  moreSuspensions.disabled=true;
+  try{
+    const result=await business('suspendedUsers',{paginationOpts:{cursor:suspensionCursor,numItems:25}});
+    if(version!==suspensionVersion)return;
+    for(const user of result.page){
+      const card=document.createElement('article'),name=document.createElement('h2'),details=document.createElement('p'),lift=document.createElement('button');
+      name.textContent=user.name;
+      details.textContent=[user.phone,'ينتهي الإيقاف '+new Date(user.until).toLocaleString('ar-IQ',{timeZone:'Asia/Baghdad'})+' بتوقيت بغداد'].filter(Boolean).join(' · ');
+      lift.textContent='رفع الإيقاف';
+      lift.onclick=async()=>{
+        if(!confirm('ترفع الإيقاف المؤقت عن '+user.name+' الآن؟'))return;
+        lift.disabled=true;
+        try{
+          await business('liftSuspension',{userId:user.id,until:user.until});
+          await loadSuspensions(true);
+          violationStatus.textContent='تم رفع الإيقاف المؤقت عن '+user.name;
+        }catch(error){violationStatus.textContent=error.message;lift.disabled=false;}
+      };
+      card.append(name,details,lift);violationList.append(card);
+    }
+    suspensionCursor=result.continueCursor;
+    moreSuspensions.hidden=result.isDone;
+    violationStatus.textContent=violationList.childElementCount?'':'ماكو حسابات موقوفة مؤقتاً.';
+  }catch(error){violationStatus.textContent=error.message;}
+  finally{if(version===suspensionVersion)moreSuspensions.disabled=false;}
+}
+moreSuspensions.onclick=()=>loadSuspensions(false);
+
+const categoriesPane=document.createElement('section');
+categoriesPane.id='categories';
+categoriesPane.hidden=true;
+categoriesPane.innerHTML='<h1>تصنيفات المهن</h1><form><label>اسم التصنيف <input name="categoryName" maxlength="50" required></label> <button>إنشاء تصنيف</button></form><p role="status"></p><div class="review-list"></div>';
+root.querySelector('main').append(categoriesPane);
+const categoryForm=categoriesPane.querySelector('form');
+const categoryStatus=categoriesPane.querySelector('[role=status]');
+const categoryRows=categoriesPane.querySelector('.review-list');
+let categoryVersion=0;
+async function categoryAction(args){
+  const version=++categoryVersion;
+  categoriesPane.inert=true;
+  try{
+    const items=await business(args?'editCategory':'adminCategories',args ?? {});
+    if(version!==categoryVersion)return;
+    categoryRows.replaceChildren();
+    for(const [id,name] of items){
+      const row=document.createElement('article'),label=document.createElement('strong');
+      label.textContent=name;
+      row.append(label);
+      if(id!=='other'){
+        const rename=document.createElement('button'),remove=document.createElement('button');
+        rename.textContent='تعديل';remove.textContent='حذف';
+        rename.onclick=()=>{const value=prompt('الاسم الجديد للتصنيف',name);if(value?.trim())categoryAction({action:'rename',id,name:value});};
+        remove.onclick=()=>{if(confirm('حذف تصنيف «'+name+'»؟'))categoryAction({action:'delete',id});};
+        row.append(rename,remove);
+      }
+      categoryRows.append(row);
+    }
+    if(args?.action==='create')categoryForm.reset();
+    categoryStatus.textContent=args?'تم حفظ التغيير':'';
+  }catch(error){categoryStatus.textContent=error.message;}
+  finally{if(version===categoryVersion)categoriesPane.inert=false;}
+}
+categoryForm.onsubmit=event=>{event.preventDefault();categoryAction({action:'create',name:categoryForm.elements.categoryName.value});};
+
 for(const tab of root.querySelectorAll('[data-pane]')){
   tab.onclick=()=>{
     for(const item of root.querySelectorAll('[data-pane]')){
@@ -339,6 +417,8 @@ for(const tab of root.querySelectorAll('[data-pane]')){
     }
     menu.open=false;
     trigger.focus();
+    if(tab.dataset.pane==='violations')loadSuspensions(true);
+    if(tab.dataset.pane==='categories')categoryAction();
     if(tab.dataset.pane==='requests')load(true);
     if(tab.dataset.pane==='app-settings')loadSettings();
     if(tab.dataset.pane==='support-tickets')loadTickets(true);
